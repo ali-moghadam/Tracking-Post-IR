@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.core.logging import get_logger
@@ -14,6 +14,24 @@ from app.services.scraper_service import scrape_tracking, scrape_raw_html
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+# ── Root ──────────────────────────────────────────────────────────
+
+@router.get("/", tags=["meta"])
+async def root() -> JSONResponse:
+    """Root endpoint — returns API info."""
+    return JSONResponse(content={
+        "name": "Iran Post Tracking API",
+        "version": "2.0.0",
+        "status": "running",
+        "endpoints": {
+            "health":    "GET  /health",
+            "track":     "POST /api/track   body: {\"trackingCode\": \"...\"}",
+            "debug":     "POST /api/debug   body: {\"trackingCode\": \"...\"}",
+            "docs":      "GET  /docs",
+        },
+    })
 
 
 # ── Health ────────────────────────────────────────────────────────
