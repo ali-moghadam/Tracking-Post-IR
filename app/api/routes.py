@@ -23,7 +23,7 @@ async def root() -> JSONResponse:
     """Root endpoint — returns API info."""
     return JSONResponse(content={
         "name": "Iran Post Tracking API",
-        "version": "2.0.0",
+        "version": "1.0.0",
         "status": "running",
         "endpoints": {
             "health":    "GET  /health",

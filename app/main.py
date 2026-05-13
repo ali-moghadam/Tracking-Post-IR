@@ -22,7 +22,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Iran Post Tracking API",
         description="Scraping proxy for https://tracking.post.ir/",
-        version="2.0.0",
+        version="1.0.0",
     )
 
     # CORS — mirrors cors({ origin: '*' }) in Node.js
