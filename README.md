@@ -121,6 +121,26 @@ pytest -v
 
 ---
 
+## CI / CD
+
+A GitHub Actions workflow is included at `.github/workflows/ci.yml`:
+
+| Trigger | Job | What it does |
+|---|---|---|
+| Every push / PR | `pytest` | Installs deps and runs the full test suite |
+| Merge to `master` | `Liara deploy` | Deploys to Liara PaaS (runs only if tests pass) |
+| Merge to `main` | `Docker build & push` | Builds the image and pushes to Docker Hub (runs only if tests pass) |
+
+**Required repository secrets** (Settings → Secrets → Actions):
+
+| Secret | Description |
+|---|---|
+| `LIARA_API_KEY` | Your Liara API key (Dashboard → Settings → API Keys) |
+| `DOCKER_USERNAME` | Your Docker Hub username |
+| `DOCKER_PASSWORD` | Your Docker Hub password or access token |
+
+---
+
 ## Deployment
 
 - **Liara PaaS:** `liara deploy` (configured via `liara.json`)

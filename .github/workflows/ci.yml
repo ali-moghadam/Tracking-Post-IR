@@ -1,0 +1,75 @@
+name: CI / CD
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  # ── Run tests on every push ──────────────────────────────────────
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install libcurl4
+        run: sudo apt-get install -y --no-install-recommends libcurl4
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest -v
+
+  # ── Deploy to Liara on merge to master ──────────────────────────
+  liara:
+    name: Liara deploy
+    needs: test
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Liara CLI
+        run: npm install -g @liara/cli@latest
+
+      - name: Deploy
+        env:
+          LIARA_API_TOKEN: ${{ secrets.LIARA_API_KEY }}
+        run: liara deploy --debug --no-cache --detach
+
+  # ── Build & push Docker image on merge to main ───────────────────
+  docker:
+    name: Docker build & push
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/tracking-post-ir:latest
+            ${{ secrets.DOCKER_USERNAME }}/tracking-post-ir:${{ github.sha }}
+

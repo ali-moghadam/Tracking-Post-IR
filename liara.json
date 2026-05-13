@@ -1,4 +1,5 @@
 {
+  "app": "tracking-post-ir",
   "platform": "python",
   "port": 3001
 }
