@@ -30,23 +30,6 @@ jobs:
       - name: Run tests
         run: pytest -v
 
-  # ── Deploy to Liara on merge to master ──────────────────────────
-  liara:
-    name: Liara deploy
-    needs: test
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Liara CLI
-        run: npm install -g @liara/cli@latest
-
-      - name: Deploy
-        env:
-          LIARA_API_TOKEN: ${{ secrets.LIARA_API_KEY }}
-        run: liara deploy --debug --no-cache --detach
 
   # ── Build & push Docker image on merge to main ───────────────────
   docker:
