@@ -2,7 +2,7 @@
 
 Track Iranian Post shipments programmatically — get real-time status, location history, and delivery updates via a simple REST API.
 
-> Bypasses Iran Post's bot-detection using Chrome TLS impersonation (`curl_cffi`) and returns clean structured JSON.
+> Bypasses Iran Post's bot-detection using Chrome TLS impersonation (`curl_cffi`), solves the site's image CAPTCHA locally with `ddddocr`, and returns clean structured JSON. No browser required.
 
 ---
 
@@ -27,32 +27,60 @@ Track Iranian Post shipments programmatically — get real-time status, location
 ### `POST /api/track`
 
 ```json
-// Request
-{ "trackingCode": "12345678901234567890" }
+// Request — `phone` is optional
+{ "trackingCode": "12345678901234567890", "phone": "09123456789" }
 
 // Success response
 {
   "success": true,
   "tracking_code": "12345678901234567890",
-  "status": "تحویل مرسوله",
+  "status": "مرسوله  تحویل گیرنده گردیده است",
   "receiver_name": "علی مقدم",
-  "origin": "تهران",
-  "destination": "آیادان",
-  "last_update": "1403/02/20 - 14:35",
+  "origin": "مركزي،ساوه،نقطه مبادله شهرستان ساوه",
+  "destination": "اصفهان،کاشان،نقطه مبادله پستی شهرستان کاشان",
+  "last_update": "دوشنبه 29 تير ماه 1405 - 09:19",
   "is_delivered": true,
   "events": [
-    { "date": "1403/02/20 - 14:35", "location": "اداره پست تهران", "status": "تحویل مرسوله" }
+    {
+      "date": "دوشنبه 29 تير ماه 1405 - 09:19",
+      "location": "اصفهان،کاشان،نقطه مبادله پستی شهرستان کاشان",
+      "status": "مرسوله  تحویل گیرنده گردیده است"
+    }
   ],
   "error": null
 }
 ```
 
-`trackingCode` must be **20–24 digits**. Possible `status` values: `NOT_FOUND`, `NO_DATA`, `INVALID_CODE`, `BLOCKED`, or a live Persian status string.
+`trackingCode` must be **20–24 digits**.
+
+`phone` is the receiver's Iranian mobile number (`09xxxxxxxxx`, `+989xxxxxxxxx`, or
+`989xxxxxxxxx` — all normalised) and is **optional**. Every field except `receiver_name`
+is returned without it.
+
+Iran Post puts `receiver_name` behind a phone gate — the results page asks for a mobile
+number with *«برای مشاهده جزئیات شماره موبایل الزامی است»* and posts it back via
+`CustomerMob`. This client implements that second postback, but **it is unverified**:
+submitting a number that doesn't belong to the shipment changes the response by nothing
+at all — no name, and no error either. Whether supplying the genuine receiver's number
+reveals the name has not been confirmed. Treat `receiver_name` as best-effort; it comes
+back empty in every case tested so far.
+
+A failed lookup returns HTTP 200 with `"success": false` and a `status` explaining why:
+
+| `status` | Meaning |
+|---|---|
+| `NOT_FOUND` | Iran Post has no record of this code |
+| `INVALID_CODE` | Site rejected the code (includes the site's own message in `error`) |
+| `NO_DATA` | Result panel came back empty |
+| `CAPTCHA_FAILED` | CAPTCHA could not be solved within `MAX_RETRIES + 1` attempts |
+| `BLOCKED` | Request was blocked by bot-detection |
+
+On success, `status` is the live Persian status string from the shipment's latest event.
 
 | HTTP | Cause |
 |---|---|
-| `400` | Invalid tracking code format |
-| `502` | Iran Post unreachable or returned no data |
+| `400` | Invalid tracking code or phone format |
+| `502` | Iran Post unreachable |
 
 ---
 
@@ -79,9 +107,36 @@ docker compose up --build -d
 | `HOST` | `0.0.0.0` | Bind address |
 | `DEBUG` | `false` | Hot-reload + debug logs |
 | `TIMEOUT_SECONDS` | `20.0` | Request timeout |
-| `MAX_RETRIES` | `2` | GET retry attempts |
+| `MAX_RETRIES` | `5` | Extra attempts after the first, mostly spent re-solving the CAPTCHA |
 | `RETRY_SLEEP_SECONDS` | `1.5` | Delay between retries |
 | `IMPERSONATE` | `chrome124` | TLS profile (`chrome124`, `safari17_0`, …) |
+| `TRUECAPTCHA_USERID` | — | Optional [TrueCaptcha](https://truecaptcha.org) fallback solver |
+| `TRUECAPTCHA_APIKEY` | — | Optional TrueCaptcha API key |
+| `CAPSOLVER_API_KEY` | — | Optional [CapSolver](https://capsolver.com) key, for reCAPTCHA/hCaptcha |
+
+No API keys are required. The CAPTCHA is solved locally and offline by `ddddocr`; the
+TrueCaptcha and CapSolver settings are fallbacks that stay dormant unless you set them.
+
+---
+
+## How CAPTCHA Solving Works
+
+`tracking.post.ir` guards its search form with a 4-digit image CAPTCHA. Each request:
+
+1. `GET /` — collect the ASP.NET hidden fields (`__VIEWSTATE`, `__EVENTVALIDATION`, …)
+   and detect the CAPTCHA.
+2. Download the CAPTCHA image from `search.aspx?captcha=1` on the same session.
+3. Solve it locally with `ddddocr`. The digits are dark navy on a light-blue background,
+   overlaid with brightly coloured noise curves, so the image is rendered three ways —
+   a navy colour mask cropped to the left of the frame, the untouched image, and a wider
+   mask — and the results are majority-voted. Anything that isn't exactly 4 digits is
+   discarded.
+4. `POST /` — submit the form with the answer in `txtCaptcha`.
+
+A wrong answer is *not* an HTTP error: the site returns 200 with an empty result panel.
+That case is detected and the whole flow retries with a fresh CAPTCHA, up to
+`MAX_RETRIES` times. If every attempt fails, the response is an explicit
+`CAPTCHA_FAILED` — never a blank success.
 
 ---
 
@@ -152,7 +207,7 @@ Liara will auto-deploy on every push to `master`.
 
 ## Tech Stack
 
-Python 3.12 · FastAPI · Uvicorn · curl_cffi · BeautifulSoup4 · Pydantic v2 · Docker
+Python 3.13 · FastAPI · Uvicorn · curl_cffi · BeautifulSoup4 · Pydantic v2 · ddddocr · Pillow · Docker
 
 ---
 
@@ -163,7 +218,9 @@ app/
 ├── api/routes.py          # Endpoints
 ├── core/config.py         # Settings (env vars)
 ├── models/schemas.py      # Pydantic models
-└── services/scraper_service.py  # GET → POST → parse pipeline
+└── services/
+    ├── scraper_service.py # GET → CAPTCHA → POST → parse pipeline
+    └── captcha_service.py # CAPTCHA detection, image preprocessing, OCR
 tests/
 └── test_scraper.py
 ```

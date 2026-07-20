@@ -1,6 +1,9 @@
 {
   "app": "tracking-post-ir",
   "platform": "python",
-  "port": 3001
+  "port": 3001,
+  "build": {
+    "location": "iran"
+  },
+  "disks": []
 }
-

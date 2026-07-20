@@ -55,9 +55,9 @@ async def track(body: TrackRequest) -> TrackResponse:
 
     - **trackingCode**: 20–24 digit numeric string.
     """
-    logger.info("[track] request code=%s", body.trackingCode)
+    logger.info("[track] request code=%s phone=%s", body.trackingCode, "set" if body.phone else "not set")
     try:
-        result = await scrape_tracking(body.trackingCode)
+        result = await scrape_tracking(body.trackingCode, phone=body.phone)
         return result
     except Exception as exc:
         logger.exception("[track] unexpected error code=%s: %s", body.trackingCode, exc)
@@ -75,7 +75,7 @@ async def debug_html(body: TrackRequest) -> HTMLResponse:
     """
     logger.info("[debug] request code=%s", body.trackingCode)
     try:
-        html = await scrape_raw_html(body.trackingCode)
+        html = await scrape_raw_html(body.trackingCode, phone=body.phone)
         if html is None:
             raise HTTPException(status_code=502, detail="Scrape returned no HTML")
         return HTMLResponse(content=html)
